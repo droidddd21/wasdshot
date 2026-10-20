@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react"
-import { ArrowUpRight, Check, Circle, Clipboard, Crop, Minus, Palette, PawPrint, PenLine, RectangleHorizontal, Save, Undo2, X } from "lucide-react"
+import { ArrowUpRight, Check, Circle, Clipboard, Crop, Minus, Palette, PawPrint, PenLine, RectangleHorizontal, Save, Undo2, X, Zap, SquareDashed, CircleDashed, ScanLine } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,10 +11,14 @@ import { placePet } from "./pet"
 import bluePetUrl from "../../assets/axolotl-pet.png"
 import redPetUrl from "../../assets/axolotl-pet-red.png"
 import greenPetUrl from "../../assets/axolotl-pet-green.png"
+import ivavaPetUrl from "../../assets/ivava-pet.png"
+import mikuPetUrl from "../../assets/miku-pet.png"
 
 type Bridge = { postMessage: (message: string) => void; addEventListener: (name: string, listener: (event: { data: string }) => void) => void }
 declare global { interface Window { chrome?: { webview?: Bridge } } }
 type Language = "ru" | "en"
+type CaptureShape = "rectangle" | "ellipse" | "rounded"
+type PetKind = "axolotl" | "ivava" | "miku"
 
 const inks = [
   { id: "ice", label: "Лёд", value: "#8dd9ff" },
@@ -28,6 +32,11 @@ const themes = [
   { id: "green", label: "Зелёная тема", value: "#85d6a5" },
 ]
 const petUrls: Record<string, string> = { blue: bluePetUrl, red: redPetUrl, green: greenPetUrl }
+const petKinds: { id: PetKind; label: string; url: string }[] = [
+  { id: "axolotl", label: "Acelot", url: bluePetUrl },
+  { id: "ivava", label: "Ivava", url: ivavaPetUrl },
+  { id: "miku", label: "Miku", url: mikuPetUrl },
+]
 const send = (message: string) => window.chrome?.webview?.postMessage(message)
 
 function IconAction({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: ReactNode }) {
@@ -60,6 +69,13 @@ export default function App() {
   const [, setPetAssetsVersion] = useState(0)
   const [petEnabled, setPetEnabled] = useState(false)
   const [petPosition, setPetPosition] = useState<Point | null>(null)
+  const [petKind, setPetKind] = useState<PetKind>(() => {
+    try { const value = localStorage.getItem("wasdshot-pet-kind"); return value === "ivava" || value === "miku" ? value : "axolotl" } catch { return "axolotl" }
+  })
+  const [captureShape, setCaptureShape] = useState<CaptureShape>(() => {
+    try { const value = localStorage.getItem("wasdshot-capture-shape"); return value === "ellipse" || value === "rounded" ? value : "rectangle" } catch { return "rectangle" }
+  })
+  const [quickSave, setQuickSave] = useState(() => { try { return localStorage.getItem("wasdshot-quick-save") === "on" } catch { return false } })
   const [language, setLanguage] = useState<Language>(() => {
     try { return localStorage.getItem("wasdshot-language") === "en" ? "en" : "ru" } catch { return "ru" }
   })
@@ -68,13 +84,13 @@ export default function App() {
     pen: "Pen", rectangle: "Rectangle", ellipse: "Ellipse", line: "Line", arrow: "Arrow",
     undo: "Undo", newSelection: "New screenshot", copy: "Copy", save: "Save", pet: "Pet",
     showPet: "Show or hide pet", interfaceColor: "Interface and pet color", inkColor: "Ink color",
-    close: "Close", language: "Language", copiedSize: "Screenshot"
+    close: "Close", language: "Language", copiedSize: "Screenshot", shapes: "Capture shape", pets: "Pet", quickSave: "Quick save", rounded: "Rounded"
   } : {
     selectArea: "Выделите область", exit: "Esc — выход", tools: "Фигуры и пометки", select: "Новое выделение",
     pen: "Перо", rectangle: "Прямоугольник", ellipse: "Эллипс", line: "Линия", arrow: "Стрелка",
     undo: "Отменить", newSelection: "Новый скриншот", copy: "Копировать", save: "Сохранить", pet: "Pet",
     showPet: "Показать или скрыть ацелота", interfaceColor: "Цвет интерфейса и ацелота", inkColor: "Цвет линии",
-    close: "Закрыть", language: "Язык", copiedSize: "Снимок"
+    close: "Закрыть", language: "Язык", copiedSize: "Снимок", shapes: "Форма захвата", pets: "Питомец", quickSave: "Быстрое сохранение", rounded: "Скруглённый"
   }
 
   useEffect(() => {
@@ -82,6 +98,11 @@ export default function App() {
       const image = new Image()
       image.onload = () => { petImages.current[choice.id] = image; setPetAssetsVersion(version => version + 1) }
       image.src = petUrls[choice.id]
+    }
+    for (const pet of petKinds.slice(1)) {
+      const image = new Image()
+      image.onload = () => { petImages.current[pet.id] = image; setPetAssetsVersion(version => version + 1) }
+      image.src = pet.url
     }
   }, [])
 
@@ -157,6 +178,8 @@ export default function App() {
         undoFromHost.current()
       } else if (event.data === "pet:on" || event.data === "pet:off") {
         setPetEnabled(event.data === "pet:on")
+      } else if (event.data.startsWith("language:")) {
+        chooseLanguage(event.data.slice(9))
       } else if (event.data.startsWith("shortcut:")) setShortcut(event.data.slice(9))
       else if (event.data.startsWith("theme:")) {
         const next = event.data.slice(6)
@@ -207,7 +230,24 @@ export default function App() {
     try { localStorage.setItem("wasdshot-language", next) } catch { }
   }
 
-  const exportImage = (action: "copy" | "save") => {
+  const choosePet = (next: string) => {
+    if (next !== "axolotl" && next !== "ivava" && next !== "miku") return
+    setPetKind(next)
+    try { localStorage.setItem("wasdshot-pet-kind", next) } catch { }
+  }
+
+  const chooseShape = (next: string) => {
+    if (next !== "rectangle" && next !== "ellipse" && next !== "rounded") return
+    setCaptureShape(next)
+    try { localStorage.setItem("wasdshot-capture-shape", next) } catch { }
+  }
+
+  const chooseQuickSave = (enabled: boolean) => {
+    setQuickSave(enabled)
+    try { localStorage.setItem("wasdshot-quick-save", enabled ? "on" : "off") } catch { }
+  }
+
+  const exportImage = (action: "copy" | "save" | "quick-save") => {
     try {
       const image = screenshot.current, region = selectionRef.current
       if (!image || !region || region.width < 6 || region.height < 6) return
@@ -223,7 +263,16 @@ export default function App() {
       ctx.scale(scaleX, scaleY)
       ctx.translate(-region.x, -region.y)
       ctx.beginPath()
-      ctx.rect(region.x, region.y, region.width, region.height)
+      if (captureShape === "ellipse") {
+        ctx.ellipse(region.x + region.width / 2, region.y + region.height / 2, region.width / 2, region.height / 2, 0, 0, Math.PI * 2)
+      } else if (captureShape === "rounded") {
+        const radius = Math.min(24, Math.min(region.width, region.height) / 5)
+        ctx.moveTo(region.x + radius, region.y)
+        ctx.arcTo(region.x + region.width, region.y, region.x + region.width, region.y + region.height, radius)
+        ctx.arcTo(region.x + region.width, region.y + region.height, region.x, region.y + region.height, radius)
+        ctx.arcTo(region.x, region.y + region.height, region.x, region.y, radius)
+        ctx.arcTo(region.x, region.y, region.x + region.width, region.y, radius)
+      } else ctx.rect(region.x, region.y, region.width, region.height)
       ctx.clip()
       for (const mark of marksRef.current) paintMark(ctx, mark)
       if (petEnabled && activePet && petRect) ctx.drawImage(activePet, petRect.x, petRect.y, petRect.width, petRect.height)
@@ -298,6 +347,8 @@ export default function App() {
       setPetPosition(null)
       setDraftSelection(null)
       dragStart.current = null
+      setTool("pen")
+      if (region && quickSave) requestAnimationFrame(() => exportImage("quick-save"))
       schedulePaint()
     }
     if (currentMark.current) {
@@ -321,7 +372,7 @@ export default function App() {
   }
 
   const visible = draftSelection ?? selection
-  const activePet = petImages.current[theme]
+  const activePet = petImages.current[petKind] || petImages.current[theme]
   const petRect = selection && petEnabled && activePet ? placePet(selection, activePet.naturalWidth / activePet.naturalHeight, petPosition) : null
   const themePicker = <ToggleGroup value={[theme]} onValueChange={value => {
     const next = value[0]
@@ -333,6 +384,14 @@ export default function App() {
     <ToggleGroupItem value="ru" aria-label="Русский" title="Русский">RU</ToggleGroupItem>
     <ToggleGroupItem value="en" aria-label="English" title="English">EN</ToggleGroupItem>
   </ToggleGroup>
+  const shapePicker = <ToggleGroup value={[captureShape]} onValueChange={value => chooseShape(value[0])} size="sm" spacing={0} aria-label={labels.shapes}>
+    <ToggleGroupItem value="rectangle" aria-label={labels.rectangle} title={labels.rectangle}><SquareDashed /></ToggleGroupItem>
+    <ToggleGroupItem value="ellipse" aria-label={labels.ellipse} title={labels.ellipse}><CircleDashed /></ToggleGroupItem>
+    <ToggleGroupItem value="rounded" aria-label={labels.rounded} title={labels.rounded}><ScanLine /></ToggleGroupItem>
+  </ToggleGroup>
+  const petPicker = <ToggleGroup value={[petKind]} onValueChange={value => choosePet(value[0])} size="sm" spacing={0} aria-label={labels.pets}>
+    {petKinds.map(pet => <ToggleGroupItem key={pet.id} value={pet.id} aria-label={pet.label} title={pet.label}>{pet.label}</ToggleGroupItem>)}
+  </ToggleGroup>
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
   const toolbarWidth = 508
@@ -343,7 +402,7 @@ export default function App() {
     <img ref={screenshotElement} className="desktop-capture" alt="" draggable={false} />
     {!visible && <div className="screen-shade screen-shade-full" />}
     {visible && <>
-      <div className="selection-frame" style={{ left: visible.x, top: visible.y, width: visible.width, height: visible.height }} />
+      <div className={`selection-frame shape-${captureShape}`} style={{ left: visible.x, top: visible.y, width: visible.width, height: visible.height }} />
       <div className="size-badge" style={{ left: visible.x, top: Math.max(8, visible.y - 32) }}><Badge variant="secondary">{Math.round(visible.width)} × {Math.round(visible.height)}</Badge></div>
     </>}
     <canvas ref={annotationCanvas} className="annotation-canvas" aria-hidden="true" />
@@ -362,7 +421,7 @@ export default function App() {
       }}
       onPointerUp={event => { petDrag.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId) }}
       onPointerCancel={() => { petDrag.current = null }} />}
-    {!selection && <div className="start-hint"><Crop aria-hidden="true" /><strong>wasdshot</strong><Separator orientation="vertical" /><span>{labels.selectArea}</span><Badge variant="outline">{shortcut}</Badge><Separator orientation="vertical" /><Palette aria-hidden="true" />{themePicker}{languagePicker}<span>{labels.exit}</span></div>}
+    {!selection && <div className="start-hint"><Crop aria-hidden="true" /><strong>wasdshot</strong><Separator orientation="vertical" /><span>{labels.selectArea}</span><Badge variant="outline">{shortcut}</Badge><Separator orientation="vertical" /><Palette aria-hidden="true" />{shapePicker}{themePicker}{languagePicker}<span>{labels.exit}</span></div>}
     {selection && <Card size="sm" className="action-card" style={{ left, top }}>
       <CardHeader className="action-head"><CardTitle>wasdshot</CardTitle><CardDescription>{labels.tools}</CardDescription><CardAction><Badge variant="secondary">{Math.round(selection.width)} × {Math.round(selection.height)}</Badge></CardAction></CardHeader>
       <CardContent className="action-content">
@@ -379,7 +438,7 @@ export default function App() {
         <IconAction label={labels.undo} disabled={!markCount} onClick={() => { marksRef.current = marksRef.current.slice(0, -1); setMarkCount(marksRef.current.length); schedulePaint() }}><Undo2 /></IconAction>
         <IconAction label={labels.newSelection} onClick={clearSelection}><Crop /></IconAction>
       </CardContent>
-      <CardFooter className="action-footer"><Button size="sm" variant="outline" onClick={() => exportImage("copy")}><Clipboard data-icon="inline-start" /> {labels.copy}</Button><Button size="sm" onClick={() => exportImage("save")}><Save data-icon="inline-start" /> {labels.save}</Button><Button size="sm" variant={petEnabled ? "secondary" : "outline"} aria-pressed={petEnabled} onClick={() => { const next = !petEnabled; setPetEnabled(next); send(next ? "pet:on" : "pet:off") }} title={labels.showPet}><PawPrint data-icon="inline-start" /> {labels.pet}</Button><Separator orientation="vertical" />{themePicker}{languagePicker}<IconAction label={labels.close} onClick={() => send("cancel")}><X /></IconAction></CardFooter>
+      <CardFooter className="action-footer"><Button size="sm" variant="outline" onClick={() => exportImage("copy")}><Clipboard data-icon="inline-start" /> {labels.copy}</Button><Button size="sm" onClick={() => exportImage("save")}><Save data-icon="inline-start" /> {labels.save}</Button><Button size="sm" variant={petEnabled ? "secondary" : "outline"} aria-pressed={petEnabled} onClick={() => { const next = !petEnabled; setPetEnabled(next); send(next ? "pet:on" : "pet:off") }} title={labels.showPet}><PawPrint data-icon="inline-start" /> {labels.pet}</Button><Separator orientation="vertical" />{petPicker}{shapePicker}{themePicker}{languagePicker}<Button size="icon-sm" variant={quickSave ? "secondary" : "ghost"} aria-pressed={quickSave} onClick={() => chooseQuickSave(!quickSave)} title={labels.quickSave}><Zap /></Button><IconAction label={labels.newSelection} onClick={clearSelection}><Crop /></IconAction><IconAction label={labels.close} onClick={() => send("cancel")}><X /></IconAction></CardFooter>
     </Card>}
   </main></TooltipProvider>
 }

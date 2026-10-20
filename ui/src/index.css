@@ -46,6 +46,8 @@ button:not(:disabled) { cursor: pointer; }
 @keyframes shade-in { from { opacity: 0; } to { opacity: 1; } }
 .screen-shade-full { inset: 0; }
 .selection-frame { position: absolute; border: 1px solid var(--primary); border-radius: 2px; box-shadow: 0 0 0 100vmax #07101d4d, 0 0 0 1px var(--overlay-edge), 0 0 6px var(--overlay-glow); pointer-events: none; will-change: left, top, width, height; }
+.selection-frame.shape-ellipse { border-radius: 50%; }
+.selection-frame.shape-rounded { border-radius: 18px; }
 .size-badge { position: absolute; pointer-events: none; filter: drop-shadow(0 3px 10px #07101d9c); }
 .annotation-canvas { position: absolute; display: none; pointer-events: none; }
 .pet-sticker { position: absolute; object-fit: contain; cursor: grab; touch-action: none; user-select: none; filter: drop-shadow(0 3px 5px #07101d70); }

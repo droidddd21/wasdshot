@@ -177,6 +177,11 @@ namespace Wasdshot
             if (webReady) web.CoreWebView2.PostWebMessageAsString(enabled ? "pet:on" : "pet:off");
         }
 
+        public void SetLanguage(string language)
+        {
+            if (webReady) web.CoreWebView2.PostWebMessageAsString("language:" + language);
+        }
+
         public void RequestCopy()
         {
             if (IsCaptureActive && webReady) web.CoreWebView2.PostWebMessageAsString("copy-request");
@@ -189,6 +194,7 @@ namespace Wasdshot
 
         public event Action<string> ThemeChanged;
         public event Action<string> PetChanged;
+        public event Action<string> LanguageChanged;
 
         async void InitializeWebView()
         {
@@ -231,6 +237,7 @@ namespace Wasdshot
                 if (captureActive) SendCapture();
                 if (ThemeChanged != null) ThemeChanged(null);
                 if (PetChanged != null) PetChanged(null);
+                if (LanguageChanged != null) LanguageChanged(null);
             }
             else if (message == "loaded" && captureActive)
             {
@@ -249,6 +256,7 @@ namespace Wasdshot
             else if (message == "cancel") Dismiss();
             else if (message.StartsWith("copy:")) Export(message.Substring(5), false);
             else if (message.StartsWith("save:")) Export(message.Substring(5), true);
+            else if (message.StartsWith("quick-save:")) ExportQuick(message.Substring(11));
             else if (message.StartsWith("error:")) MessageBox.Show("Не удалось подготовить снимок: " + message.Substring(6), "wasdshot", MessageBoxButtons.OK, MessageBoxIcon.Error);
             else if (message.StartsWith("theme:") && ThemeChanged != null) ThemeChanged(message.Substring(6));
             else if (message.StartsWith("pet:") && PetChanged != null) PetChanged(message.Substring(4));
@@ -278,6 +286,27 @@ namespace Wasdshot
             {
                 MessageBox.Show("Не удалось " + (save ? "сохранить" : "скопировать") + ": " + ex.Message, "wasdshot", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 if (!IsDisposed && !Visible) { Show(); Activate(); }
+            }
+        }
+
+        void ExportQuick(string encoded)
+        {
+            try
+            {
+                using (MemoryStream stream = new MemoryStream(Convert.FromBase64String(encoded)))
+                using (Image decoded = Image.FromStream(stream))
+                using (Bitmap image = new Bitmap(decoded))
+                {
+                    string folder = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+                    if (String.IsNullOrEmpty(folder)) folder = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                    string file = Path.Combine(folder, "wasdshot-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".png");
+                    image.Save(file, ImageFormat.Png);
+                    Dismiss();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Не удалось быстро сохранить снимок: " + ex.Message, "wasdshot", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -384,16 +413,19 @@ namespace Wasdshot
         string shortcut = "Ctrl + Shift + S";
         string fallbackShortcut = "Ctrl + Shift + S";
         string theme = "blue";
+        string language = "ru";
         bool petEnabled;
         bool exiting;
         readonly string themeFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "theme.txt");
         readonly string petFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "pet.txt");
+        readonly string languageFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "language.txt");
         ToolStripMenuItem petItem;
 
         public CaptureContext()
         {
             try { if (File.Exists(themeFile)) theme = NormalizeTheme(File.ReadAllText(themeFile).Trim()); } catch { }
             try { if (File.Exists(petFile)) petEnabled = File.ReadAllText(petFile).Trim() == "on"; } catch { }
+            try { if (File.Exists(languageFile)) language = File.ReadAllText(languageFile).Trim() == "en" ? "en" : "ru"; } catch { }
             hotkey = new HotkeyWindow(OpenOverlay, delegate { if (overlay != null && !overlay.IsDisposed && overlay.IsCaptureActive) overlay.Dismiss(); }, RequestCopy, RequestUndo);
             registered = RegisterHotKey(hotkey.Handle, HotkeyId, 0x0002 | 0x0004, (uint)Keys.S);
             if (!registered)
@@ -422,6 +454,14 @@ namespace Wasdshot
                 colors.DropDownItems.Add(item);
             }
             tray.ContextMenuStrip.Items.Add(colors);
+            ToolStripMenuItem languageMenu = new ToolStripMenuItem("Язык / Language");
+            ToolStripMenuItem russian = new ToolStripMenuItem("Русский") { Checked = language == "ru" };
+            ToolStripMenuItem english = new ToolStripMenuItem("English") { Checked = language == "en" };
+            russian.Click += delegate { SetLanguage("ru"); russian.Checked = true; english.Checked = false; };
+            english.Click += delegate { SetLanguage("en"); russian.Checked = false; english.Checked = true; };
+            languageMenu.DropDownItems.Add(russian);
+            languageMenu.DropDownItems.Add(english);
+            tray.ContextMenuStrip.Items.Add(languageMenu);
             petItem = new ToolStripMenuItem("Показывать питомца");
             petItem.CheckOnClick = true;
             petItem.Checked = petEnabled;
@@ -462,6 +502,7 @@ namespace Wasdshot
             overlay = created;
             created.ThemeChanged += delegate(string selected) { if (selected == null && !created.IsDisposed) created.SetTheme(theme); else if (selected != null) SetTheme(selected); };
             created.PetChanged += delegate(string selected) { if (selected == null && !created.IsDisposed) created.SetPetEnabled(petEnabled); else if (selected != null) SetPetEnabled(selected == "on"); };
+            created.LanguageChanged += delegate(string selected) { if (selected == null && !created.IsDisposed) created.SetLanguage(language); else if (selected != null) SetLanguage(selected); };
             created.FormClosed += delegate
             {
                 if (!ReferenceEquals(overlay, created)) return;
@@ -538,6 +579,13 @@ namespace Wasdshot
             if (petItem.Checked != enabled) petItem.Checked = enabled;
             try { Directory.CreateDirectory(Path.GetDirectoryName(petFile)); File.WriteAllText(petFile, enabled ? "on" : "off"); } catch { }
             if (overlay != null && !overlay.IsDisposed) overlay.SetPetEnabled(enabled);
+        }
+
+        void SetLanguage(string choice)
+        {
+            language = choice == "en" ? "en" : "ru";
+            try { Directory.CreateDirectory(Path.GetDirectoryName(languageFile)); File.WriteAllText(languageFile, language); } catch { }
+            if (overlay != null && !overlay.IsDisposed) overlay.SetLanguage(language);
         }
 
         IntPtr OnKeyboardHook(int code, IntPtr message, IntPtr data)
