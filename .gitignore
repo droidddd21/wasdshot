@@ -1,0 +1,6 @@
+ui/node_modules/
+ui/dist/
+*.user
+*.suo
+.vs/
+wasdshot-payload.zip

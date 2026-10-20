@@ -1,0 +1,71 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --background: #0f1b2b; --foreground: #ecf7ff; --card: #17283d; --card-foreground: #ecf7ff;
+  --popover: #17283d; --popover-foreground: #ecf7ff; --primary: #70c7ff; --primary-foreground: #091726;
+  --secondary: #24425d; --secondary-foreground: #d8f1ff; --muted: #21364d; --muted-foreground: #9cb9cf;
+  --accent: #2b5876; --accent-foreground: #e4f6ff; --destructive: #f3899a; --border: #456580;
+  --input: #456580; --ring: #86d8ff; --radius: 0.85rem;
+  --overlay-edge: #74caff9c; --overlay-glow: #51b4ff42; --overlay-shadow: #07101da8;
+}
+:root[data-theme="red"] {
+  --background: #281719; --foreground: #fff4f2; --card: #3b2227; --card-foreground: #fff4f2;
+  --popover: #3b2227; --popover-foreground: #fff4f2; --primary: #ff8d92; --primary-foreground: #2a1015;
+  --secondary: #5b3037; --secondary-foreground: #ffe3e1; --muted: #4a2c32; --muted-foreground: #ddb3b5;
+  --accent: #6d3b43; --accent-foreground: #fff0ee; --border: #8b565d; --input: #8b565d; --ring: #ffb4b4;
+  --overlay-edge: #ff9ca5a0; --overlay-glow: #ff858044; --overlay-shadow: #1a0b0da8;
+}
+:root[data-theme="green"] {
+  --background: #14251e; --foreground: #edfff4; --card: #20392c; --card-foreground: #edfff4;
+  --popover: #20392c; --popover-foreground: #edfff4; --primary: #85d6a5; --primary-foreground: #10281c;
+  --secondary: #2c5540; --secondary-foreground: #d7f8e2; --muted: #274534; --muted-foreground: #a5cbb4;
+  --accent: #376b4e; --accent-foreground: #e6fff0; --border: #4d8064; --input: #4d8064; --ring: #adf1c2;
+  --overlay-edge: #9ce4b1a0; --overlay-glow: #7bda9a42; --overlay-shadow: #09180fa8;
+}
+@theme inline {
+  --font-sans: "Segoe UI", sans-serif;
+  --color-background: var(--background); --color-foreground: var(--foreground);
+  --color-card: var(--card); --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover); --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary); --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary); --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted); --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent); --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive); --color-border: var(--border); --color-input: var(--input); --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px); --radius-md: calc(var(--radius) - 2px); --radius-lg: var(--radius); --radius-xl: calc(var(--radius) + 4px);
+}
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { font-family: "Segoe UI", sans-serif; color: var(--foreground); background: var(--background); }
+button:not(:disabled) { cursor: pointer; }
+.capture-shell { width: 100vw; height: 100vh; position: relative; overflow: hidden; user-select: none; }
+.desktop-capture { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
+.capture-interaction { position: absolute; inset: 0; cursor: crosshair; touch-action: none; }
+.screen-shade { position: absolute; background: #07101d4d; pointer-events: none; }
+@keyframes shade-in { from { opacity: 0; } to { opacity: 1; } }
+.screen-shade-full { inset: 0; }
+.selection-frame { position: absolute; border: 1px solid var(--primary); border-radius: 2px; box-shadow: 0 0 0 100vmax #07101d4d, 0 0 0 1px var(--overlay-edge), 0 0 6px var(--overlay-glow); pointer-events: none; will-change: left, top, width, height; }
+.size-badge { position: absolute; pointer-events: none; filter: drop-shadow(0 3px 10px #07101d9c); }
+.annotation-canvas { position: absolute; display: none; pointer-events: none; }
+.pet-sticker { position: absolute; object-fit: contain; cursor: grab; touch-action: none; user-select: none; filter: drop-shadow(0 3px 5px #07101d70); }
+.pet-sticker:active { cursor: grabbing; }
+.start-hint { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 7px; height: 39px; padding: 4px 11px; border: 1px solid var(--overlay-edge); border-radius: 12px; background: var(--card); box-shadow: 0 0 10px var(--overlay-glow), 0 9px 20px var(--overlay-shadow); white-space: nowrap; font-size: 11px; color: var(--muted-foreground); animation: shade-in 100ms ease-out both; }
+.start-hint > svg { width: 15px; height: 15px; color: var(--primary); }
+.start-hint strong { color: var(--foreground); font-size: 12px; letter-spacing: .02em; }
+.start-hint [data-slot="separator"] { height: 18px; }
+.action-card { position: absolute; width: 508px; overflow: visible; border: 1px solid var(--overlay-edge); box-shadow: 0 0 0 1px var(--overlay-glow), 0 0 11px var(--overlay-glow), 0 13px 27px var(--overlay-shadow); backdrop-filter: blur(12px); background: var(--card); }
+.action-head { display: grid; grid-template-columns: 1fr auto; column-gap: 8px; padding-top: 7px; padding-bottom: 3px; }
+.action-head [data-slot="card-title"] { font-size: 12px; line-height: 1; font-weight: 700; }
+.action-head [data-slot="card-description"] { font-size: 10px; line-height: 1; }
+.action-head [data-slot="card-action"] { grid-column: 2; grid-row: 1 / span 2; }
+.action-content { display: flex; align-items: center; gap: 4px; padding-top: 3px; padding-bottom: 5px; }
+.action-content [data-slot="separator"] { height: 23px; margin: 0 2px; }
+.ink-dot { display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; }
+.ink-dot svg { width: 10px !important; height: 10px !important; color: #112338; stroke-width: 3; }
+.theme-dot { display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; }
+.theme-dot svg { width: 10px !important; height: 10px !important; color: #10231a; stroke-width: 3; }
+.action-footer { display: flex; gap: 5px; padding: 5px 9px 8px; background: transparent; }
+.action-footer > [data-slot="button"]:first-child { flex: 1; }
+.action-footer > [data-slot="button"]:nth-child(2) { flex: 1; box-shadow: 0 0 7px var(--overlay-glow); }
+.action-footer [data-slot="separator"] { height: 24px; margin: 0 3px; }
