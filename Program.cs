@@ -314,10 +314,7 @@ namespace Wasdshot
                 using (Image decoded = Image.FromStream(stream))
                 using (Bitmap image = new Bitmap(decoded))
                 {
-                    string folder = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-                    if (String.IsNullOrEmpty(folder)) folder = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-                    string file = Path.Combine(folder, "wasdshot-" + DateTime.Now.ToString("yyyy-MM-dd-HHmmss") + ".png");
-                    image.Save(file, ImageFormat.Png);
+                    Clipboard.SetDataObject(image, true, 10, 50);
                     Dismiss();
                 }
             }
@@ -518,7 +515,7 @@ namespace Wasdshot
             tray.ContextMenuStrip.Items.Add(petMenu);
             ToolStripMenuItem modeMenu = new ToolStripMenuItem("Режим скриншота");
             ToolStripMenuItem editMode = new ToolStripMenuItem("Редактировать после выделения") { Checked = !quickSave };
-            ToolStripMenuItem quickMode = new ToolStripMenuItem("Быстро сохранить в Изображения") { Checked = quickSave };
+            ToolStripMenuItem quickMode = new ToolStripMenuItem("Быстро копировать в буфер обмена") { Checked = quickSave };
             editMode.Click += delegate { SetQuickSave(false); editMode.Checked = true; quickMode.Checked = false; };
             quickMode.Click += delegate { SetQuickSave(true); quickMode.Checked = true; editMode.Checked = false; };
             modeMenu.DropDownItems.Add(editMode);
