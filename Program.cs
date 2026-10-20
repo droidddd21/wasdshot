@@ -77,7 +77,6 @@ namespace Wasdshot
         {
             if (IsDisposed || initializationStarted) return;
             if (!IsHandleCreated) CreateControl();
-            EnsureWebView();
         }
 
         void EnsureWebView()
@@ -93,7 +92,7 @@ namespace Wasdshot
             {
                 if (environmentTask == null)
                 {
-                    string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "webview2-v1");
+                    string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "webview2-v1-final");
                     environmentTask = CoreWebView2Environment.CreateAsync(null, folder);
                 }
                 return environmentTask;
@@ -103,6 +102,7 @@ namespace Wasdshot
         public void BeginCapture(Bitmap image, Rectangle desktop, string activeShortcut)
         {
             Bounds = desktop;
+            Opacity = 1;
             if (!IsHandleCreated) CreateControl();
             preview.Image = null;
             if (screenshot != null) screenshot.Dispose();
@@ -115,13 +115,13 @@ namespace Wasdshot
             shortcut = activeShortcut;
             int disableTransitions = 1;
             DwmSetWindowAttribute(Handle, DwmwaTransitionsForceDisabled, ref disableTransitions, sizeof(int));
-            EnsureWebView();
             if (!Visible)
             {
                 Show();
                 preview.Refresh();
                 Update();
             }
+            EnsureWebView();
             if (webReady) SendCapture();
         }
 
@@ -729,3 +729,4 @@ namespace Wasdshot
         }
     }
 }
+
