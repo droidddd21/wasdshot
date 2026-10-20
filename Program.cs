@@ -1,9 +1,12 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Net;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -395,6 +398,8 @@ namespace Wasdshot
 
     sealed class CaptureContext : ApplicationContext
     {
+        const string AppVersion = "2.0.0";
+        const string LatestReleaseUrl = "https://api.github.com/repos/droidddd21/wasdshot/releases/latest";
         const int HotkeyId = 0x5753;
         const int KeyboardHookId = 13;
         const int KeyDownMessage = 0x0100;
@@ -417,6 +422,7 @@ namespace Wasdshot
         readonly HotkeyWindow hotkey;
         readonly NotifyIcon tray;
         readonly KeyboardHookProc hookCallback;
+        readonly Control dispatcher;
         OverlayForm overlay;
         IntPtr keyboardHook;
         bool interceptSnipShortcut;
@@ -431,13 +437,23 @@ namespace Wasdshot
         string petKind = "axolotl";
         bool petEnabled;
         bool quickSave;
+        bool startWithWindows;
         bool exiting;
+        bool checkingForUpdates;
         readonly string themeFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "theme.txt");
         readonly string petFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "pet.txt");
         readonly string petKindFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "pet-kind.txt");
         readonly string quickSaveFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "mode.txt");
+        const string StartupKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        const string StartupValueName = "wasdshot";
         readonly string languageFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "language.txt");
         ToolStripMenuItem petItem;
+
+        sealed class UpdateInfo
+        {
+            public string Version;
+            public string DownloadUrl;
+        }
 
         public CaptureContext()
         {
@@ -445,8 +461,11 @@ namespace Wasdshot
             try { if (File.Exists(petFile)) petEnabled = File.ReadAllText(petFile).Trim() == "on"; } catch { }
             try { if (File.Exists(petKindFile)) petKind = NormalizePetKind(File.ReadAllText(petKindFile).Trim()); } catch { }
             try { if (File.Exists(quickSaveFile)) quickSave = File.ReadAllText(quickSaveFile).Trim() == "quick"; } catch { }
+            startWithWindows = StartsWithWindows();
             try { if (File.Exists(languageFile)) language = File.ReadAllText(languageFile).Trim() == "en" ? "en" : "ru"; } catch { }
             hotkey = new HotkeyWindow(OpenOverlay, delegate { if (overlay != null && !overlay.IsDisposed && overlay.IsCaptureActive) overlay.Dismiss(); }, RequestCopy, RequestUndo);
+            dispatcher = new Control();
+            dispatcher.CreateControl();
             registered = RegisterHotKey(hotkey.Handle, HotkeyId, 0x0002 | 0x0004, (uint)Keys.S);
             if (!registered)
             {
@@ -505,6 +524,10 @@ namespace Wasdshot
             modeMenu.DropDownItems.Add(editMode);
             modeMenu.DropDownItems.Add(quickMode);
             tray.ContextMenuStrip.Items.Add(modeMenu);
+            ToolStripMenuItem startupItem = new ToolStripMenuItem("Запускать вместе с Windows") { CheckOnClick = true, Checked = startWithWindows };
+            startupItem.CheckedChanged += delegate { if (!SetStartWithWindows(startupItem.Checked)) startupItem.Checked = startWithWindows; };
+            tray.ContextMenuStrip.Items.Add(startupItem);
+            tray.ContextMenuStrip.Items.Add("Проверить обновления", null, delegate { CheckForUpdates(true); });
             ToolStripMenuItem interceptItem = new ToolStripMenuItem("Перехватывать Win + Shift + S");
             interceptItem.CheckOnClick = true;
             interceptItem.Checked = interceptSnipShortcut;
@@ -522,6 +545,7 @@ namespace Wasdshot
             tray.Visible = true;
             tray.ShowBalloonTip(3000, "wasdshot запущен", "Снимок: Win + Shift + S. Настройки и выход — в трее.", ToolTipIcon.Info);
             PrepareOverlay();
+            CheckForUpdates(false);
         }
 
         void RequestCopy()
@@ -561,6 +585,16 @@ namespace Wasdshot
         static string NormalizeTheme(string value) { return value == "red" || value == "green" ? value : "blue"; }
 
         static string NormalizePetKind(string value) { return value == "ivava" || value == "miku" ? value : "axolotl"; }
+
+        static bool StartsWithWindows()
+        {
+            try
+            {
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(StartupKeyPath, false))
+                    return key != null && key.GetValue(StartupValueName) != null;
+            }
+            catch { return false; }
+        }
 
         static bool UsesLightApps()
         {
@@ -635,6 +669,95 @@ namespace Wasdshot
             quickSave = enabled;
             try { Directory.CreateDirectory(Path.GetDirectoryName(quickSaveFile)); File.WriteAllText(quickSaveFile, enabled ? "quick" : "edit"); } catch { }
             if (overlay != null && !overlay.IsDisposed) overlay.SetQuickSave(enabled);
+        }
+
+        bool SetStartWithWindows(bool enabled)
+        {
+            try
+            {
+                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(StartupKeyPath))
+                {
+                    if (enabled) key.SetValue(StartupValueName, "\"" + Application.ExecutablePath + "\"");
+                    else key.DeleteValue(StartupValueName, false);
+                }
+                startWithWindows = enabled;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                tray.ShowBalloonTip(3000, "wasdshot", "Не удалось изменить автозапуск: " + ex.Message, ToolTipIcon.Error);
+                return false;
+            }
+        }
+
+        void CheckForUpdates(bool manual)
+        {
+            if (checkingForUpdates) return;
+            checkingForUpdates = true;
+            Task.Run(delegate
+            {
+                UpdateInfo update = null;
+                string error = null;
+                try { update = GetLatestUpdate(); }
+                catch (Exception ex) { error = ex.Message; }
+                if (dispatcher.IsDisposed) return;
+                dispatcher.BeginInvoke((Action)delegate
+                {
+                    checkingForUpdates = false;
+                    if (update == null)
+                    {
+                        if (manual)
+                        {
+                            string message = String.IsNullOrEmpty(error) ? "У вас уже установлена последняя версия wasdshot." : "Не удалось проверить обновления: " + error;
+                            MessageBox.Show(message, "wasdshot", MessageBoxButtons.OK, String.IsNullOrEmpty(error) ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+                        }
+                        return;
+                    }
+                    if (MessageBox.Show("Доступна wasdshot v" + update.Version + ".\n\nСкачать и установить обновление?", "Обновление wasdshot", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                        DownloadAndInstall(update);
+                });
+            });
+        }
+
+        static UpdateInfo GetLatestUpdate()
+        {
+            ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+            string json;
+            using (WebClient client = new WebClient())
+            {
+                client.Headers[HttpRequestHeader.UserAgent] = "wasdshot/" + AppVersion;
+                json = client.DownloadString(LatestReleaseUrl);
+            }
+            Match versionMatch = Regex.Match(json, @"""tag_name""\s*:\s*""v?([^""]+)""");
+            if (!versionMatch.Success) return null;
+            Version remote;
+            Version local;
+            if (!Version.TryParse(versionMatch.Groups[1].Value, out remote) || !Version.TryParse(AppVersion, out local) || remote.CompareTo(local) <= 0) return null;
+            Match setupMatch = Regex.Match(json, @"""browser_download_url""\s*:\s*""([^""]*wasdshot-setup-v[^""]*\.exe)""", RegexOptions.IgnoreCase);
+            if (!setupMatch.Success) return null;
+            return new UpdateInfo { Version = remote.ToString(), DownloadUrl = setupMatch.Groups[1].Value.Replace("\\u0026", "&") };
+        }
+
+        void DownloadAndInstall(UpdateInfo update)
+        {
+            tray.ShowBalloonTip(3000, "wasdshot", "Скачивается обновление v" + update.Version + "…", ToolTipIcon.Info);
+            Task.Run(delegate
+            {
+                try
+                {
+                    string setup = Path.Combine(Path.GetTempPath(), "wasdshot-setup-" + update.Version + ".exe");
+                    using (WebClient client = new WebClient())
+                    {
+                        client.Headers[HttpRequestHeader.UserAgent] = "wasdshot/" + AppVersion;
+                        client.DownloadFile(update.DownloadUrl, setup);
+                    }
+                    if (!dispatcher.IsDisposed) dispatcher.BeginInvoke((Action)delegate { Process.Start(setup); ExitThread(); });
+                }
+                catch (Exception ex)
+                {
+                    if (!dispatcher.IsDisposed) dispatcher.BeginInvoke((Action)delegate { MessageBox.Show("Не удалось скачать обновление: " + ex.Message, "wasdshot", MessageBoxButtons.OK, MessageBoxIcon.Error); });
+                }
+            });
         }
 
         void SetLanguage(string choice)
