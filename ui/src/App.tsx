@@ -57,6 +57,9 @@ export default function App() {
   const copyFromHost = useRef<() => void>(() => {})
   const undoFromHost = useRef<() => void>(() => {})
   const petDrag = useRef<Point | null>(null)
+  const petEnabledRef = useRef(false)
+  const petKindRef = useRef<PetKind>("axolotl")
+  const petPositionRef = useRef<Point | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [shortcut, setShortcut] = useState("Win + Shift + S")
   const [selection, setSelection] = useState<Rect | null>(null)
@@ -147,6 +150,7 @@ export default function App() {
         setDraftSelection(null)
         setMarkCount(0)
         setTool("select")
+        petPositionRef.current = null
         setPetPosition(null)
         setLoaded(false)
         if (annotationCanvas.current) annotationCanvas.current.style.display = "none"
@@ -171,10 +175,12 @@ export default function App() {
       } else if (event.data === "undo-request") {
         undoFromHost.current()
       } else if (event.data === "pet:on" || event.data === "pet:off") {
-        setPetEnabled(event.data === "pet:on")
+        const enabled = event.data === "pet:on"
+        petEnabledRef.current = enabled
+        setPetEnabled(enabled)
       } else if (event.data.startsWith("pet-kind:")) {
         const next = event.data.slice(9)
-        if (next === "axolotl" || next === "ivava" || next === "miku") setPetKind(next)
+        if (next === "axolotl" || next === "ivava" || next === "miku") { petKindRef.current = next; setPetKind(next) }
       } else if (event.data === "quick-save:on" || event.data === "quick-save:off") {
         setQuickSave(event.data === "quick-save:on")
       } else if (event.data.startsWith("language:")) {
@@ -245,7 +251,9 @@ export default function App() {
       ctx.scale(scaleX, scaleY)
       ctx.translate(-region.x, -region.y)
       for (const mark of marksRef.current) paintMark(ctx, mark)
-      if (petEnabled && activePet && petRect) ctx.drawImage(activePet, petRect.x, petRect.y, petRect.width, petRect.height)
+      const exportPet = petImages.current[petKindRef.current] || petImages.current[theme]
+      const exportPetRect = petEnabledRef.current && exportPet ? placePet(region, exportPet.naturalWidth / exportPet.naturalHeight, petPositionRef.current) : null
+      if (exportPet && exportPetRect) ctx.drawImage(exportPet, exportPetRect.x, exportPetRect.y, exportPetRect.width, exportPetRect.height)
       ctx.restore()
       send(`${action}:${canvas.toDataURL("image/png").split(",")[1]}`)
     } catch (error) {
@@ -292,6 +300,7 @@ export default function App() {
       setSelection(null)
       setDraftSelection({ x: point.x, y: point.y, width: 0, height: 0 })
       setTool("pen")
+      petPositionRef.current = null
       setPetPosition(null)
       schedulePaint()
     }
@@ -314,6 +323,7 @@ export default function App() {
       const region = box.width >= 6 && box.height >= 6 ? box : null
       selectionRef.current = region
       setSelection(region)
+      petPositionRef.current = null
       setPetPosition(null)
       setDraftSelection(null)
       dragStart.current = null
@@ -379,6 +389,7 @@ export default function App() {
       onPointerMove={event => {
         if (!petDrag.current || !selectionRef.current) return
         const next = placePet(selectionRef.current, activePet.naturalWidth / activePet.naturalHeight, { x: event.clientX - petDrag.current.x, y: event.clientY - petDrag.current.y })
+        petPositionRef.current = { x: next.x, y: next.y }
         setPetPosition({ x: next.x, y: next.y })
       }}
       onPointerUp={event => { petDrag.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId) }}
