@@ -177,6 +177,16 @@ namespace Wasdshot
             if (webReady) web.CoreWebView2.PostWebMessageAsString(enabled ? "pet:on" : "pet:off");
         }
 
+        public void SetPetKind(string kind)
+        {
+            if (webReady) web.CoreWebView2.PostWebMessageAsString("pet-kind:" + kind);
+        }
+
+        public void SetQuickSave(bool enabled)
+        {
+            if (webReady) web.CoreWebView2.PostWebMessageAsString(enabled ? "quick-save:on" : "quick-save:off");
+        }
+
         public void SetLanguage(string language)
         {
             if (webReady) web.CoreWebView2.PostWebMessageAsString("language:" + language);
@@ -194,6 +204,8 @@ namespace Wasdshot
 
         public event Action<string> ThemeChanged;
         public event Action<string> PetChanged;
+        public event Action<string> PetKindChanged;
+        public event Action<string> QuickSaveChanged;
         public event Action<string> LanguageChanged;
 
         async void InitializeWebView()
@@ -237,6 +249,8 @@ namespace Wasdshot
                 if (captureActive) SendCapture();
                 if (ThemeChanged != null) ThemeChanged(null);
                 if (PetChanged != null) PetChanged(null);
+                if (PetKindChanged != null) PetKindChanged(null);
+                if (QuickSaveChanged != null) QuickSaveChanged(null);
                 if (LanguageChanged != null) LanguageChanged(null);
             }
             else if (message == "loaded" && captureActive)
@@ -414,10 +428,14 @@ namespace Wasdshot
         string fallbackShortcut = "Ctrl + Shift + S";
         string theme = "blue";
         string language = "ru";
+        string petKind = "axolotl";
         bool petEnabled;
+        bool quickSave;
         bool exiting;
         readonly string themeFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "theme.txt");
         readonly string petFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "pet.txt");
+        readonly string petKindFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "pet-kind.txt");
+        readonly string quickSaveFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "mode.txt");
         readonly string languageFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "language.txt");
         ToolStripMenuItem petItem;
 
@@ -425,6 +443,8 @@ namespace Wasdshot
         {
             try { if (File.Exists(themeFile)) theme = NormalizeTheme(File.ReadAllText(themeFile).Trim()); } catch { }
             try { if (File.Exists(petFile)) petEnabled = File.ReadAllText(petFile).Trim() == "on"; } catch { }
+            try { if (File.Exists(petKindFile)) petKind = NormalizePetKind(File.ReadAllText(petKindFile).Trim()); } catch { }
+            try { if (File.Exists(quickSaveFile)) quickSave = File.ReadAllText(quickSaveFile).Trim() == "quick"; } catch { }
             try { if (File.Exists(languageFile)) language = File.ReadAllText(languageFile).Trim() == "en" ? "en" : "ru"; } catch { }
             hotkey = new HotkeyWindow(OpenOverlay, delegate { if (overlay != null && !overlay.IsDisposed && overlay.IsCaptureActive) overlay.Dismiss(); }, RequestCopy, RequestUndo);
             registered = RegisterHotKey(hotkey.Handle, HotkeyId, 0x0002 | 0x0004, (uint)Keys.S);
@@ -467,6 +487,24 @@ namespace Wasdshot
             petItem.Checked = petEnabled;
             petItem.CheckedChanged += delegate { SetPetEnabled(petItem.Checked); };
             tray.ContextMenuStrip.Items.Add(petItem);
+            ToolStripMenuItem petMenu = new ToolStripMenuItem("Выбрать питомца");
+            foreach (string choice in new[] { "axolotl", "ivava", "miku" })
+            {
+                string selected = choice;
+                string title = choice == "axolotl" ? "Acelot" : choice == "ivava" ? "Iwawwa" : "Hatsune Miku";
+                ToolStripMenuItem item = new ToolStripMenuItem(title) { Checked = petKind == choice };
+                item.Click += delegate { SetPetKind(selected); foreach (ToolStripMenuItem other in petMenu.DropDownItems) other.Checked = other == item; };
+                petMenu.DropDownItems.Add(item);
+            }
+            tray.ContextMenuStrip.Items.Add(petMenu);
+            ToolStripMenuItem modeMenu = new ToolStripMenuItem("Режим скриншота");
+            ToolStripMenuItem editMode = new ToolStripMenuItem("Редактировать после выделения") { Checked = !quickSave };
+            ToolStripMenuItem quickMode = new ToolStripMenuItem("Быстро сохранить в Изображения") { Checked = quickSave };
+            editMode.Click += delegate { SetQuickSave(false); editMode.Checked = true; quickMode.Checked = false; };
+            quickMode.Click += delegate { SetQuickSave(true); quickMode.Checked = true; editMode.Checked = false; };
+            modeMenu.DropDownItems.Add(editMode);
+            modeMenu.DropDownItems.Add(quickMode);
+            tray.ContextMenuStrip.Items.Add(modeMenu);
             ToolStripMenuItem interceptItem = new ToolStripMenuItem("Перехватывать Win + Shift + S");
             interceptItem.CheckOnClick = true;
             interceptItem.Checked = interceptSnipShortcut;
@@ -502,6 +540,8 @@ namespace Wasdshot
             overlay = created;
             created.ThemeChanged += delegate(string selected) { if (selected == null && !created.IsDisposed) created.SetTheme(theme); else if (selected != null) SetTheme(selected); };
             created.PetChanged += delegate(string selected) { if (selected == null && !created.IsDisposed) created.SetPetEnabled(petEnabled); else if (selected != null) SetPetEnabled(selected == "on"); };
+            created.PetKindChanged += delegate(string selected) { if (selected == null && !created.IsDisposed) created.SetPetKind(petKind); else if (selected != null) SetPetKind(selected); };
+            created.QuickSaveChanged += delegate(string selected) { if (selected == null && !created.IsDisposed) created.SetQuickSave(quickSave); else if (selected != null) SetQuickSave(selected == "on"); };
             created.LanguageChanged += delegate(string selected) { if (selected == null && !created.IsDisposed) created.SetLanguage(language); else if (selected != null) SetLanguage(selected); };
             created.FormClosed += delegate
             {
@@ -519,6 +559,8 @@ namespace Wasdshot
         }
 
         static string NormalizeTheme(string value) { return value == "red" || value == "green" ? value : "blue"; }
+
+        static string NormalizePetKind(string value) { return value == "ivava" || value == "miku" ? value : "axolotl"; }
 
         static bool UsesLightApps()
         {
@@ -579,6 +621,20 @@ namespace Wasdshot
             if (petItem.Checked != enabled) petItem.Checked = enabled;
             try { Directory.CreateDirectory(Path.GetDirectoryName(petFile)); File.WriteAllText(petFile, enabled ? "on" : "off"); } catch { }
             if (overlay != null && !overlay.IsDisposed) overlay.SetPetEnabled(enabled);
+        }
+
+        void SetPetKind(string choice)
+        {
+            petKind = NormalizePetKind(choice);
+            try { Directory.CreateDirectory(Path.GetDirectoryName(petKindFile)); File.WriteAllText(petKindFile, petKind); } catch { }
+            if (overlay != null && !overlay.IsDisposed) overlay.SetPetKind(petKind);
+        }
+
+        void SetQuickSave(bool enabled)
+        {
+            quickSave = enabled;
+            try { Directory.CreateDirectory(Path.GetDirectoryName(quickSaveFile)); File.WriteAllText(quickSaveFile, enabled ? "quick" : "edit"); } catch { }
+            if (overlay != null && !overlay.IsDisposed) overlay.SetQuickSave(enabled);
         }
 
         void SetLanguage(string choice)
