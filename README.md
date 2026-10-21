@@ -1,5 +1,13 @@
 # wasdshot
 
+<p align="center">
+  <img src="docs/preview-macos.svg" alt="wasdshot screenshot overlay" width="760">
+</p>
+
+<p align="center">
+  <img src="docs/preview-tray-macos.svg" alt="wasdshot tray controls" width="760">
+</p>
+
 Компактный Windows-скриншотер с полноэкранным оверлеем. Панель действий собрана из реальных компонентов shadcn/ui (Base UI): Card, Button, ToggleGroup, Badge, Separator и Tooltip. Захват экрана, системный хоткей, буфер обмена и сохранение PNG работают в нативном C#-хосте через WebView2.
 
 ## Запуск
