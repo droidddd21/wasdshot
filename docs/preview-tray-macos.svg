@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">wasdshot tray controls preview</title>
+  <desc id="desc">A macOS-style preview showing wasdshot tray controls for pets, language, mode and startup.</desc>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e9f8ff"/><stop offset="1" stop-color="#f8efff"/></linearGradient><filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#36536b" flood-opacity=".22"/></filter></defs>
+  <rect width="1440" height="900" fill="url(#bg)"/>
+  <g filter="url(#shadow)">
+    <rect x="170" y="112" width="1100" height="676" rx="26" fill="#f9fcff"/>
+    <rect x="170" y="112" width="1100" height="64" rx="26" fill="#eef4fa"/><rect x="170" y="150" width="1100" height="26" fill="#eef4fa"/>
+    <circle cx="206" cy="144" r="8" fill="#ff6f67"/><circle cx="232" cy="144" r="8" fill="#ffc34d"/><circle cx="258" cy="144" r="8" fill="#55c96f"/>
+    <text x="720" y="150" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="600" fill="#6d8193">wasdshot · tray controls</text>
+    <rect x="432" y="220" width="620" height="510" rx="20" fill="#dcecf7"/>
+    <rect x="780" y="266" width="310" height="420" rx="18" fill="#ffffff"/>
+    <text x="810" y="310" font-family="Inter,Arial,sans-serif" font-size="17" font-weight="700" fill="#243f55">wasdshot</text>
+    <text x="810" y="346" font-family="Inter,Arial,sans-serif" font-size="15" fill="#35536b">Сделать скриншот</text>
+    <line x1="810" y1="368" x2="1060" y2="368" stroke="#dce8f0"/>
+    <text x="810" y="405" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="700" fill="#6a8396">РЕЖИМ</text>
+    <text x="810" y="438" font-family="Inter,Arial,sans-serif" font-size="15" fill="#35536b">Редактировать после выделения</text>
+    <text x="810" y="470" font-family="Inter,Arial,sans-serif" font-size="15" fill="#35536b">Быстро копировать в буфер</text>
+    <text x="810" y="515" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="700" fill="#6a8396">ПИТОМЕЦ</text>
+    <text x="810" y="548" font-family="Inter,Arial,sans-serif" font-size="15" fill="#35536b">Показывать питомца</text>
+    <text x="810" y="580" font-family="Inter,Arial,sans-serif" font-size="15" fill="#35536b">Выбрать питомца ›</text>
+    <text x="810" y="625" font-family="Inter,Arial,sans-serif" font-size="15" fill="#35536b">Язык / Language ›</text>
+    <text x="810" y="657" font-family="Inter,Arial,sans-serif" font-size="15" fill="#35536b">Запускать вместе с Windows</text>
+    <circle cx="572" cy="495" r="88" fill="#aee7f5"/><path d="M522 505 q50 -72 100 0 q-50 44 -100 0Z" fill="#f4dce8"/><circle cx="552" cy="497" r="7" fill="#315879"/><circle cx="592" cy="497" r="7" fill="#315879"/>
+    <text x="572" y="642" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="16" font-weight="600" fill="#3d6078">Acelot · Iwawwa · Miku</text>
+  </g>
+</svg>
+
