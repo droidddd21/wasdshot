@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">wasdshot screenshot overlay preview</title>
+  <desc id="desc">A macOS-style preview card showing the wasdshot screenshot overlay with a cozy blue interface.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#dff4ff"/><stop offset="1" stop-color="#f3eaff"/></linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#17324d"/><stop offset="1" stop-color="#356d91"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="28" stdDeviation="28" flood-color="#25425c" flood-opacity=".23"/></filter>
+    <filter id="soft"><feGaussianBlur stdDeviation="24"/></filter>
+  </defs>
+  <rect width="1440" height="900" fill="url(#bg)"/>
+  <circle cx="160" cy="130" r="150" fill="#9bdcf2" opacity=".35" filter="url(#soft)"/>
+  <circle cx="1280" cy="760" r="190" fill="#d6b8f2" opacity=".28" filter="url(#soft)"/>
+  <g filter="url(#shadow)">
+    <rect x="130" y="92" width="1180" height="716" rx="26" fill="#f8fbff"/>
+    <rect x="130" y="92" width="1180" height="64" rx="26" fill="#eef4fa"/>
+    <rect x="130" y="130" width="1180" height="26" fill="#eef4fa"/>
+    <circle cx="166" cy="124" r="8" fill="#ff6f67"/><circle cx="192" cy="124" r="8" fill="#ffc34d"/><circle cx="218" cy="124" r="8" fill="#55c96f"/>
+    <text x="720" y="130" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="600" fill="#6d8193">wasdshot</text>
+    <rect x="176" y="186" width="1088" height="540" rx="18" fill="url(#screen)"/>
+    <path d="M176 550 C380 430 470 620 690 500 S1020 425 1264 545 V726 H176Z" fill="#285975" opacity=".75"/>
+    <path d="M176 610 C390 520 510 710 760 570 S1080 520 1264 610 V726 H176Z" fill="#163b57" opacity=".72"/>
+    <rect x="452" y="612" width="535" height="86" rx="20" fill="#f5fbff" fill-opacity=".96"/>
+    <text x="486" y="650" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700" fill="#1e425e">wasdshot</text>
+    <text x="486" y="677" font-family="Inter,Arial,sans-serif" font-size="15" fill="#6a8094">Draw, copy, save — instantly</text>
+    <rect x="850" y="635" width="112" height="38" rx="12" fill="#6fc9ee"/>
+    <text x="906" y="659" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="700" fill="#10354d">Copy</text>
+    <rect x="1100" y="214" width="132" height="42" rx="14" fill="#f6fbff" fill-opacity=".93"/>
+    <text x="1166" y="240" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="600" fill="#2e526d">Pen · Blue</text>
+    <rect x="1092" y="274" width="140" height="42" rx="14" fill="#f6fbff" fill-opacity=".93"/>
+    <text x="1162" y="300" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="600" fill="#2e526d">Ctrl + C</text>
+    <path d="M1020 470 q42 -50 84 0 q-42 28 -84 0Z" fill="#f9e6ec" opacity=".95"/><circle cx="1044" cy="465" r="6" fill="#2d5474"/><circle cx="1082" cy="465" r="6" fill="#2d5474"/>
+  </g>
+</svg>
+
