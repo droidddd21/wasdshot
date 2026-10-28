@@ -5,3 +5,4 @@ ui/*.tsbuildinfo
 *.suo
 .vs/
 wasdshot-payload.zip
+release-local-test/

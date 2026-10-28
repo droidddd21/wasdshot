@@ -12,7 +12,7 @@ namespace WasdshotSetup
     static class Program
     {
         const string AppName = "wasdshot";
-        const string Version = "2.0.0";
+        const string Version = "3.0.0";
 
         [STAThread]
         static void Main(string[] args)
@@ -33,7 +33,7 @@ namespace WasdshotSetup
 
         static void Install(string installDirectory)
         {
-            if (MessageBox.Show("Установить wasdshot v2?", "wasdshot setup", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return;
+            if (MessageBox.Show("Установить wasdshot v3?", "wasdshot setup", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return;
             StopRunningApp();
             Directory.CreateDirectory(installDirectory);
             using (Stream resource = Assembly.GetExecutingAssembly().GetManifestResourceStream("wasdshot.payload.zip"))
@@ -69,7 +69,7 @@ namespace WasdshotSetup
                 key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
             }
             Process.Start(appExe);
-            MessageBox.Show("wasdshot v2 установлен и запущен.\n\nWin + Shift + S — сделать скриншот.", "wasdshot setup", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show("wasdshot v3 установлен и запущен.\n\nWin + Shift + S — сделать скриншот.", "wasdshot setup", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         static void Uninstall(string installDirectory)
@@ -114,4 +114,3 @@ namespace WasdshotSetup
         }
     }
 }
-

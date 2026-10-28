@@ -22,7 +22,7 @@ namespace Wasdshot
 
         public CapturePreview()
         {
-            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.Opaque, true);
             TabStop = false;
         }
 
@@ -36,7 +36,48 @@ namespace Wasdshot
         {
             base.OnPaint(e);
             if (image == null) return;
-            e.Graphics.DrawImage(image, ClientRectangle);
+            // The captured bitmap already matches the virtual desktop dimensions.
+            // Avoid an unnecessary full-screen resample on the UI thread.
+            e.Graphics.DrawImageUnscaled(image, Point.Empty);
+            using (Brush shade = new SolidBrush(Color.FromArgb(77, 7, 16, 29)))
+                e.Graphics.FillRectangle(shade, ClientRectangle);
+        }
+    }
+
+    // A separate opaque top-level surface shields the first WebView2 compositor
+    // frames. It does not take focus or mouse input from the capture window.
+    sealed class CaptureCover : Form
+    {
+        readonly Image image;
+        public CaptureCover(Image captured, Rectangle desktop)
+        {
+            image = captured;
+            FormBorderStyle = FormBorderStyle.None;
+            StartPosition = FormStartPosition.Manual;
+            Bounds = desktop;
+            ShowInTaskbar = false;
+            TopMost = true;
+            BackColor = Color.Black;
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.Opaque, true);
+        }
+        protected override bool ShowWithoutActivation { get { return true; } }
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams parameters = base.CreateParams;
+                parameters.ExStyle |= 0x20 | 0x08000000; // WS_EX_TRANSPARENT | WS_EX_NOACTIVATE
+                return parameters;
+            }
+        }
+        protected override void WndProc(ref Message message)
+        {
+            if (message.Msg == 0x84) { message.Result = new IntPtr(-1); return; } // HTTRANSPARENT
+            base.WndProc(ref message);
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.DrawImageUnscaled(image, Point.Empty);
             using (Brush shade = new SolidBrush(Color.FromArgb(77, 7, 16, 29)))
                 e.Graphics.FillRectangle(shade, ClientRectangle);
         }
@@ -46,6 +87,7 @@ namespace Wasdshot
     {
         const int DwmwaTransitionsForceDisabled = 3;
         [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int valueSize);
+        [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
         Bitmap screenshot;
         string shortcut;
         bool webReady;
@@ -54,6 +96,7 @@ namespace Wasdshot
         int captureVersion;
         readonly WebView2 web;
         readonly CapturePreview preview;
+        CaptureCover cover;
         static readonly object EnvironmentLock = new object();
         static Task<CoreWebView2Environment> environmentTask;
 
@@ -66,9 +109,8 @@ namespace Wasdshot
             ShowInTaskbar = false;
             TopMost = true;
             KeyPreview = true;
-            Opacity = 1;
             BackColor = Color.Black;
-            web = new WebView2 { Dock = DockStyle.Fill };
+            web = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.FromArgb(7, 16, 29) };
             web.KeyDown += delegate(object sender, KeyEventArgs args) { if (args.KeyCode == Keys.Escape) Dismiss(); };
             Controls.Add(web);
             preview = new CapturePreview { Dock = DockStyle.Fill };
@@ -80,6 +122,7 @@ namespace Wasdshot
         {
             if (IsDisposed || initializationStarted) return;
             if (!IsHandleCreated) CreateControl();
+            EnsureWebView();
         }
 
         void EnsureWebView()
@@ -105,7 +148,6 @@ namespace Wasdshot
         public void BeginCapture(Bitmap image, Rectangle desktop, string activeShortcut)
         {
             Bounds = desktop;
-            Opacity = 1;
             if (!IsHandleCreated) CreateControl();
             preview.Image = null;
             if (screenshot != null) screenshot.Dispose();
@@ -118,12 +160,15 @@ namespace Wasdshot
             shortcut = activeShortcut;
             int disableTransitions = 1;
             DwmSetWindowAttribute(Handle, DwmwaTransitionsForceDisabled, ref disableTransitions, sizeof(int));
+            cover = new CaptureCover(screenshot, desktop);
+            cover.Show();
             if (!Visible)
             {
                 Show();
                 preview.Refresh();
                 Update();
             }
+            SetWindowPos(cover.Handle, new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010);
             EnsureWebView();
             if (webReady) SendCapture();
         }
@@ -165,6 +210,7 @@ namespace Wasdshot
             if (IsDisposed) return;
             captureActive = false;
             captureVersion++;
+            if (cover != null) { cover.Close(); cover.Dispose(); cover = null; }
             preview.Image = null;
             if (screenshot != null) { screenshot.Dispose(); screenshot = null; }
             Close();
@@ -265,8 +311,7 @@ namespace Wasdshot
                     if (!captureActive || IsDisposed) return;
                     web.BringToFront();
                     preview.Visible = false;
-                    BringToFront();
-                    Activate();
+                    if (cover != null) { cover.Close(); cover.Dispose(); cover = null; }
                     web.Focus();
                 });
             }
@@ -277,6 +322,7 @@ namespace Wasdshot
             else if (message.StartsWith("error:")) MessageBox.Show("Не удалось подготовить снимок: " + message.Substring(6), "wasdshot", MessageBoxButtons.OK, MessageBoxIcon.Error);
             else if (message.StartsWith("theme:") && ThemeChanged != null) ThemeChanged(message.Substring(6));
             else if (message.StartsWith("pet:") && PetChanged != null) PetChanged(message.Substring(4));
+            else if (message.StartsWith("pet-kind:") && PetKindChanged != null) PetKindChanged(message.Substring(9));
         }
 
         void Export(string encoded, bool save)
@@ -326,6 +372,7 @@ namespace Wasdshot
 
         protected override void Dispose(bool disposing)
         {
+            if (disposing && cover != null) { cover.Close(); cover.Dispose(); cover = null; }
             if (disposing && screenshot != null) { preview.Image = null; screenshot.Dispose(); }
             base.Dispose(disposing);
         }
@@ -395,7 +442,11 @@ namespace Wasdshot
 
     sealed class CaptureContext : ApplicationContext
     {
-        const string AppVersion = "2.0.0";
+        const uint SrccopyWithCaptureBlt = 0x00CC0020 | 0x40000000;
+        [DllImport("user32.dll")] static extern IntPtr GetDC(IntPtr window);
+        [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr window, IntPtr deviceContext);
+        [DllImport("gdi32.dll", SetLastError = true)] static extern bool BitBlt(IntPtr destination, int x, int y, int width, int height, IntPtr source, int sourceX, int sourceY, uint operation);
+        const string AppVersion = "3.0.0";
         const string LatestReleaseUrl = "https://api.github.com/repos/droidddd21/wasdshot/releases/latest";
         const int HotkeyId = 0x5753;
         const int KeyboardHookId = 13;
@@ -445,6 +496,7 @@ namespace Wasdshot
         const string StartupValueName = "wasdshot";
         readonly string languageFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "wasdshot", "language.txt");
         ToolStripMenuItem petItem;
+        ToolStripMenuItem petKindMenu;
 
         sealed class UpdateInfo
         {
@@ -504,11 +556,12 @@ namespace Wasdshot
             petItem.CheckedChanged += delegate { SetPetEnabled(petItem.Checked); };
             tray.ContextMenuStrip.Items.Add(petItem);
             ToolStripMenuItem petMenu = new ToolStripMenuItem("Выбрать питомца");
-            foreach (string choice in new[] { "axolotl", "ivava", "miku" })
+            petKindMenu = petMenu;
+            foreach (string choice in new[] { "axolotl", "ivava", "miku", "plush", "bonk", "star" })
             {
                 string selected = choice;
-                string title = choice == "axolotl" ? "Acelot" : choice == "ivava" ? "Iwawwa" : "Hatsune Miku";
-                ToolStripMenuItem item = new ToolStripMenuItem(title) { Checked = petKind == choice };
+                string title = choice == "axolotl" ? "Acelot" : choice == "ivava" ? "Iwawwa" : choice == "miku" ? "Hatsune Miku" : choice == "plush" ? "Plush Pigtails" : choice == "bonk" ? "Bonk" : "Sugar";
+                ToolStripMenuItem item = new ToolStripMenuItem(title) { Checked = petKind == choice, Tag = choice };
                 item.Click += delegate { SetPetKind(selected); foreach (ToolStripMenuItem other in petMenu.DropDownItems) other.Checked = other == item; };
                 petMenu.DropDownItems.Add(item);
             }
@@ -581,7 +634,7 @@ namespace Wasdshot
 
         static string NormalizeTheme(string value) { return value == "red" || value == "green" ? value : "blue"; }
 
-        static string NormalizePetKind(string value) { return value == "ivava" || value == "miku" ? value : "axolotl"; }
+        static string NormalizePetKind(string value) { return value == "ivava" || value == "miku" || value == "plush" || value == "bonk" || value == "star" ? value : "axolotl"; }
 
         static bool StartsWithWindows()
         {
@@ -657,6 +710,7 @@ namespace Wasdshot
         void SetPetKind(string choice)
         {
             petKind = NormalizePetKind(choice);
+            if (petKindMenu != null) foreach (ToolStripMenuItem item in petKindMenu.DropDownItems) item.Checked = (string)item.Tag == petKind;
             try { Directory.CreateDirectory(Path.GetDirectoryName(petKindFile)); File.WriteAllText(petKindFile, petKind); } catch { }
             if (overlay != null && !overlay.IsDisposed) overlay.SetPetKind(petKind);
         }
@@ -826,16 +880,33 @@ namespace Wasdshot
             try
             {
                 Rectangle desktop = SystemInformation.VirtualScreen;
-                screenshot = new Bitmap(desktop.Width, desktop.Height, PixelFormat.Format32bppArgb);
+                // Screen pixels are opaque. RGB avoids uninitialised alpha values
+                // turning isolated pixels into bright specks during PNG/WebView transfer.
+                screenshot = new Bitmap(desktop.Width, desktop.Height, PixelFormat.Format32bppRgb);
                 using (Graphics graphics = Graphics.FromImage(screenshot))
                 {
                     if (Environment.GetEnvironmentVariable("WASDSHOT_DEMO") == "1") graphics.Clear(Color.FromArgb(57, 78, 105));
-                    else graphics.CopyFromScreen(desktop.Location, Point.Empty, desktop.Size);
+                    else
+                    {
+                        IntPtr screenDc = GetDC(IntPtr.Zero);
+                        if (screenDc == IntPtr.Zero) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+                        IntPtr bitmapDc = IntPtr.Zero;
+                        try
+                        {
+                            bitmapDc = graphics.GetHdc();
+                            if (!BitBlt(bitmapDc, 0, 0, desktop.Width, desktop.Height, screenDc, desktop.X, desktop.Y, SrccopyWithCaptureBlt))
+                                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+                        }
+                        finally
+                        {
+                            if (bitmapDc != IntPtr.Zero) graphics.ReleaseHdc(bitmapDc);
+                            ReleaseDC(IntPtr.Zero, screenDc);
+                        }
+                    }
                 }
                 if (overlay == null || overlay.IsDisposed) CreateOverlay(desktop);
                 overlay.BeginCapture(screenshot, desktop, shortcut);
                 screenshot = null;
-                SetForegroundWindow(overlay.Handle);
             }
             catch (Exception ex)
             {
@@ -905,4 +976,3 @@ namespace Wasdshot
         }
     }
 }
-

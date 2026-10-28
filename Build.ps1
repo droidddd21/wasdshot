@@ -23,7 +23,7 @@ try {
 }
 finally { Pop-Location }
 $sdk = Join-Path $project 'sdk'
-$release = Join-Path $project 'release-v2'
+$release = Join-Path $project 'release-v3'
 New-Item -ItemType Directory -Force -Path (Join-Path $release 'ui\dist'),(Join-Path $release 'assets') | Out-Null
 & $compiler /nologo /target:winexe /optimize+ /platform:x64 "/out:$(Join-Path $release 'wasdshot.exe')" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll "/reference:$(Join-Path $sdk 'Microsoft.Web.WebView2.Core.dll')" "/reference:$(Join-Path $sdk 'Microsoft.Web.WebView2.WinForms.dll')" (Join-Path $project 'Program.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Native build failed.' }
@@ -31,13 +31,12 @@ Copy-Item (Join-Path $sdk 'Microsoft.Web.WebView2.Core.dll'),(Join-Path $sdk 'Mi
 Copy-Item (Join-Path $project 'ui\dist\index.html'),(Join-Path $project 'ui\dist\app.js'),(Join-Path $project 'ui\dist\style.css') -Destination (Join-Path $release 'ui\dist') -Force
 Copy-Item (Join-Path $project 'assets\axolotl-tray-96.png'),(Join-Path $project 'assets\axolotl-tray-red-96.png'),(Join-Path $project 'assets\axolotl-tray-green-96.png') -Destination (Join-Path $release 'assets') -Force
 Copy-Item (Join-Path $project 'README.md') -Destination $release -Force
-$archive = Join-Path $project 'wasdshot-v2.zip'
+$archive = Join-Path $project 'wasdshot-v3.zip'
 Compress-Archive -LiteralPath $release -DestinationPath $archive -Force
 $payload = Join-Path $project 'wasdshot-payload.zip'
 Compress-Archive -Path (Join-Path $release '*') -DestinationPath $payload -Force
-$setup = Join-Path $project 'wasdshot-setup-v2.exe'
+$setup = Join-Path $project 'wasdshot-setup-v3.exe'
 & $compiler /nologo /target:winexe /optimize+ /platform:x64 "/out:$setup" /reference:System.Windows.Forms.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll "/resource:$payload,wasdshot.payload.zip" (Join-Path $project 'Installer.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
 Remove-Item -LiteralPath $payload -Force
 Write-Output (Join-Path $release 'wasdshot.exe')
-

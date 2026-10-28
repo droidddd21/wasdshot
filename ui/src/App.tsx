@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react"
-import { ArrowUpRight, Check, Circle, Clipboard, Crop, Minus, Palette, PenLine, RectangleHorizontal, Save, Undo2, X } from "lucide-react"
+import { ArrowUpRight, Check, Circle, Clipboard, Crop, Minus, Palette, PawPrint, PenLine, RectangleHorizontal, Save, Undo2, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Toggle } from "@/components/ui/toggle"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { clampToRect, contains, paintMark, rectangleBetween, type DrawingTool, type Mark, type Point, type Rect, type Tool } from "./drawing"
 import { placePet } from "./pet"
@@ -13,11 +14,14 @@ import redPetUrl from "../../assets/axolotl-pet-red.png"
 import greenPetUrl from "../../assets/axolotl-pet-green.png"
 import ivavaPetUrl from "../../assets/ivava-pet.png"
 import mikuPetUrl from "../../assets/miku-pet.png"
+import plushPetUrl from "../../assets/plush-pet.png"
+import bonkPetUrl from "../../assets/bonk-pet.png"
+import starPetUrl from "../../assets/star-pet.png"
 
 type Bridge = { postMessage: (message: string) => void; addEventListener: (name: string, listener: (event: { data: string }) => void) => void }
 declare global { interface Window { chrome?: { webview?: Bridge } } }
 type Language = "ru" | "en"
-type PetKind = "axolotl" | "ivava" | "miku"
+type PetKind = "axolotl" | "ivava" | "miku" | "plush" | "bonk" | "star"
 
 const inks = [
   { id: "ice", label: "Лёд", value: "#8dd9ff" },
@@ -35,6 +39,9 @@ const petKinds: { id: PetKind; label: string; url: string }[] = [
   { id: "axolotl", label: "Acelot", url: bluePetUrl },
   { id: "ivava", label: "Iwawwa", url: ivavaPetUrl },
   { id: "miku", label: "Miku", url: mikuPetUrl },
+  { id: "plush", label: "Plush Pigtails", url: plushPetUrl },
+  { id: "bonk", label: "Bonk", url: bonkPetUrl },
+  { id: "star", label: "Sugar", url: starPetUrl },
 ]
 const send = (message: string) => window.chrome?.webview?.postMessage(message)
 
@@ -180,7 +187,7 @@ export default function App() {
         setPetEnabled(enabled)
       } else if (event.data.startsWith("pet-kind:")) {
         const next = event.data.slice(9)
-        if (next === "axolotl" || next === "ivava" || next === "miku") { petKindRef.current = next; setPetKind(next) }
+        if (petKinds.some(choice => choice.id === next)) { petKindRef.current = next as PetKind; setPetKind(next as PetKind) }
       } else if (event.data === "quick-save:on" || event.data === "quick-save:off") {
         setQuickSave(event.data === "quick-save:on")
       } else if (event.data.startsWith("language:")) {
@@ -328,7 +335,7 @@ export default function App() {
       setDraftSelection(null)
       dragStart.current = null
       setTool("pen")
-      if (region && quickSave) requestAnimationFrame(() => exportImage("quick-save"))
+      if (region && quickSave) exportImage("quick-save")
       schedulePaint()
     }
     if (currentMark.current) {
@@ -360,10 +367,16 @@ export default function App() {
   }} size="sm" spacing={0} aria-label={labels.interfaceColor}>{themes.map(choice =>
     <ToggleGroupItem key={choice.id} value={choice.id} aria-label={choice.label} title={choice.label}><span className="theme-dot" style={{ backgroundColor: choice.value }}>{theme === choice.id && <Check />}</span></ToggleGroupItem>
   )}</ToggleGroup>
-  const languagePicker = <ToggleGroup value={[language]} onValueChange={value => chooseLanguage(value[0])} size="sm" spacing={0} aria-label={labels.language}>
-    <ToggleGroupItem value="ru" aria-label="Русский" title="Русский">RU</ToggleGroupItem>
-    <ToggleGroupItem value="en" aria-label="English" title="English">EN</ToggleGroupItem>
-  </ToggleGroup>
+  const petPicker = <span className="pet-picker"><Toggle size="sm" variant="outline" pressed={petEnabled} aria-label={labels.showPet} title={labels.showPet} onPressedChange={enabled => {
+    petEnabledRef.current = enabled
+    setPetEnabled(enabled)
+    send(`pet:${enabled ? "on" : "off"}`)
+  }}><PawPrint data-icon="inline-start" /> {labels.pet}</Toggle><select aria-label={language === "en" ? "Choose pet" : "Выбрать питомца"} value={petKind} onChange={event => {
+    const next = event.target.value as PetKind
+    petKindRef.current = next
+    setPetKind(next)
+    send(`pet-kind:${next}`)
+  }}>{petKinds.map(choice => <option key={choice.id} value={choice.id}>{choice.label}</option>)}</select></span>
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
   const toolbarWidth = 508
@@ -374,6 +387,10 @@ export default function App() {
     <img ref={screenshotElement} className="desktop-capture" alt="" draggable={false} />
     {!visible && <div className="screen-shade screen-shade-full" />}
     {visible && <>
+      <div className="screen-shade" style={{ left: 0, top: 0, width: "100%", height: visible.y }} />
+      <div className="screen-shade" style={{ left: 0, top: visible.y, width: visible.x, height: visible.height }} />
+      <div className="screen-shade" style={{ left: visible.x + visible.width, top: visible.y, right: 0, height: visible.height }} />
+      <div className="screen-shade" style={{ left: 0, top: visible.y + visible.height, width: "100%", bottom: 0 }} />
       <div className="selection-frame" style={{ left: visible.x, top: visible.y, width: visible.width, height: visible.height }} />
       <div className="size-badge" style={{ left: visible.x, top: Math.max(8, visible.y - 32) }}><Badge variant="secondary">{Math.round(visible.width)} × {Math.round(visible.height)}</Badge></div>
     </>}
@@ -394,8 +411,8 @@ export default function App() {
       }}
       onPointerUp={event => { petDrag.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId) }}
       onPointerCancel={() => { petDrag.current = null }} />}
-    {!selection && <div className="start-hint"><Crop aria-hidden="true" /><strong>wasdshot</strong><Separator orientation="vertical" /><span>{labels.selectArea}</span><Badge variant="outline">{shortcut}</Badge><Separator orientation="vertical" /><Palette aria-hidden="true" />{themePicker}{languagePicker}<span>{labels.exit}</span></div>}
-    {selection && <Card size="sm" className="action-card" style={{ left, top }}>
+    {!selection && <div className="start-hint"><Crop aria-hidden="true" /><strong>wasdshot</strong><Separator orientation="vertical" /><span>{labels.selectArea}</span><Badge variant="outline">{shortcut}</Badge><Separator orientation="vertical" /><Palette aria-hidden="true" />{themePicker}<Separator orientation="vertical" />{petPicker}<span>{labels.exit}</span></div>}
+    {selection && !quickSave && <Card size="sm" className="action-card" style={{ left, top }}>
       <CardHeader className="action-head"><CardTitle>wasdshot</CardTitle><CardDescription>{labels.tools}</CardDescription><CardAction><Badge variant="secondary">{Math.round(selection.width)} × {Math.round(selection.height)}</Badge></CardAction></CardHeader>
       <CardContent className="action-content">
         <ToggleGroup value={[tool]} onValueChange={value => value[0] && setTool(value[0] as Tool)} size="sm" spacing={1} aria-label={labels.tools}>
@@ -411,8 +428,7 @@ export default function App() {
         <IconAction label={labels.undo} disabled={!markCount} onClick={() => { marksRef.current = marksRef.current.slice(0, -1); setMarkCount(marksRef.current.length); schedulePaint() }}><Undo2 /></IconAction>
         <IconAction label={labels.newSelection} onClick={clearSelection}><Crop /></IconAction>
       </CardContent>
-      <CardFooter className="action-footer"><Button size="sm" variant="outline" onClick={() => exportImage("copy")}><Clipboard data-icon="inline-start" /> {labels.copy}</Button><Button size="sm" onClick={() => exportImage("save")}><Save data-icon="inline-start" /> {labels.save}</Button><Separator orientation="vertical" />{themePicker}{languagePicker}<IconAction label={labels.newSelection} onClick={clearSelection}><Crop /></IconAction><IconAction label={labels.close} onClick={() => send("cancel")}><X /></IconAction></CardFooter>
+      <CardFooter className="action-footer"><Button size="sm" variant="outline" onClick={() => exportImage("copy")}><Clipboard data-icon="inline-start" /> {labels.copy}</Button><Button size="sm" onClick={() => exportImage("save")}><Save data-icon="inline-start" /> {labels.save}</Button><Separator orientation="vertical" />{themePicker}<IconAction label={labels.newSelection} onClick={clearSelection}><Crop /></IconAction><IconAction label={labels.close} onClick={() => send("cancel")}><X /></IconAction></CardFooter>
     </Card>}
   </main></TooltipProvider>
 }
-
