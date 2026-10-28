@@ -13,6 +13,8 @@ namespace WasdshotSetup
     {
         const string AppName = "wasdshot";
         const string Version = "3.0.0";
+        const string StartupKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        const string StartupValueName = "wasdshot";
 
         [STAThread]
         static void Main(string[] args)
@@ -68,6 +70,7 @@ namespace WasdshotSetup
                 key.SetValue("NoModify", 1, RegistryValueKind.DWord);
                 key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
             }
+            RepairStartupPath(appExe);
             Process.Start(appExe);
             MessageBox.Show("wasdshot v3 установлен и запущен.\n\nWin + Shift + S — сделать скриншот.", "wasdshot setup", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
@@ -76,6 +79,7 @@ namespace WasdshotSetup
         {
             if (MessageBox.Show("Удалить wasdshot?", "wasdshot setup", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
             StopRunningApp();
+            RemoveStartupPath();
             string shortcut = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "wasdshot.lnk");
             if (File.Exists(shortcut)) File.Delete(shortcut);
             Registry.CurrentUser.DeleteSubKeyTree(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\wasdshot", false);
@@ -91,6 +95,23 @@ namespace WasdshotSetup
                 try { process.Kill(); process.WaitForExit(3000); }
                 catch { }
                 finally { process.Dispose(); }
+            }
+        }
+
+        static void RepairStartupPath(string appExe)
+        {
+            using (RegistryKey key = Registry.CurrentUser.OpenSubKey(StartupKeyPath, true))
+            {
+                if (key == null || key.GetValue(StartupValueName) == null) return;
+                key.SetValue(StartupValueName, "\"" + appExe + "\"");
+            }
+        }
+
+        static void RemoveStartupPath()
+        {
+            using (RegistryKey key = Registry.CurrentUser.OpenSubKey(StartupKeyPath, true))
+            {
+                if (key != null) key.DeleteValue(StartupValueName, false);
             }
         }
 
